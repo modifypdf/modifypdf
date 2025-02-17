@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remove PDF Pages</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: #f8fafc;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .back-button {
+            background: none;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #6366f1;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            transition: background-color 0.3s;
+        }
+
+        .back-button:hover {
+            background-color: #eef2ff;
+        }
+
+        .title-group {
+            flex: 1;
+        }
+
+        .title {
+            font-size: 2rem;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1.1rem;
+        }
+
+        .upload-container {
+            background-color: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .drop-zone {
+            border: 2px dashed #e5e7eb;
+            border-radius: 0.75rem;
+            padding: 4rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: #f9fafb;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #6366f1;
+            background-color: #eef2ff;
+        }
+
+        .upload-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 1rem;
+            color: #6366f1;
+        }
+
+        .drop-text {
+            color: #4b5563;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .or-text {
+            color: #9ca3af;
+            margin: 0.5rem 0;
+        }
+
+        .btn {
+            background-color: #6366f1;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+
+        .btn:hover {
+            background-color: #4f46e5;
+        }
+
+        .btn:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .pages-container {
+            display: none;
+            background-color: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-top: 2rem;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .pages-container.visible {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background-color: #f9fafb;
+            border-radius: 0.5rem;
+        }
+
+        .file-icon {
+            width: 32px;
+            height: 32px;
+            color: #6366f1;
+        }
+
+        .file-details {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: #1f2937;
+            margin-bottom: 0.25rem;
+        }
+
+        .file-size {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        .pages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .page-item {
+            position: relative;
+            background: #f9fafb;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .page-item.selected {
+            background: #eef2ff;
+            border: 2px solid #6366f1;
+        }
+
+        .page-number {
+            font-size: 0.875rem;
+            color: #4b5563;
+            margin-top: 0.5rem;
+        }
+
+        .page-preview {
+            width: 100%;
+            aspect-ratio: 1/1.4142;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: #9ca3af;
+        }
+
+        .error-message {
+            color: #dc2626;
+            background-color: #fee2e2;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .error-message.visible {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .selected-pages {
+            margin-top: 1rem;
+            padding: 1rem;
+            background-color: #f9fafb;
+            border-radius: 0.5rem;
+        }
+
+        .selected-pages-title {
+            font-weight: 500;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+
+        .selected-pages-list {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="text.html">
+            <button class="back-button" onclick="window.history.back()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Back
+            </button>
+        </a>
+            <div class="title-group">
+                <h1 class="title">Remove PDF Pages</h1>
+                <p class="subtitle">Select pages to remove from your PDF</p>
+            </div>
+        </div>
+
+        <div class="upload-container">
+            <div id="dropZone" class="drop-zone">
+                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <p class="drop-text">Drag and drop your PDF here</p>
+                <p class="or-text">or</p>
+                <button class="btn" onclick="document.getElementById('fileInput').click()">Select PDF file</button>
+                <input type="file" id="fileInput" hidden accept=".pdf">
+            </div>
+        </div>
+
+        <div id="pagesContainer" class="pages-container">
+            <div id="fileInfo" class="file-info">
+                <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <div class="file-details">
+                    <div id="fileName" class="file-name"></div>
+                    <div id="fileSize" class="file-size"></div>
+                </div>
+            </div>
+
+            <div id="pagesGrid" class="pages-grid"></div>
+
+            <div class="selected-pages">
+                <h3 class="selected-pages-title">Selected Pages to Remove</h3>
+                <p id="selectedPagesList" class="selected-pages-list">No pages selected</p>
+            </div>
+
+            <button id="removeButton" class="btn" disabled>Remove Selected Pages</button>
+
+            <div id="errorMessage" class="error-message">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span id="errorText"></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const pagesContainer = document.getElementById('pagesContainer');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const pagesGrid = document.getElementById('pagesGrid');
+        const removeButton = document.getElementById('removeButton');
+        const selectedPagesList = document.getElementById('selectedPagesList');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+        
+        let selectedFile = null;
+        let selectedPages = new Set();
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        // Highlight drop zone when dragging over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        // Handle dropped files
+        dropZone.addEventListener('drop', handleDrop, false);
+        fileInput.addEventListener('change', handleFileSelect, false);
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function highlight(e) {
+            dropZone.classList.add('dragover');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            handleFiles(files);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.classList.add('visible');
+        }
+
+        function hideError() {
+            errorMessage.classList.remove('visible');
+        }
+
+        function updateSelectedPagesList() {
+            if (selectedPages.size === 0) {
+                selectedPagesList.textContent = 'No pages selected';
+                removeButton.disabled = true;
+            } else {
+                const pageNumbers = Array.from(selectedPages).sort((a, b) => a - b);
+                selectedPagesList.textContent = `Pages to remove: ${pageNumbers.join(', ')}`;
+                removeButton.disabled = false;
+            }
+        }
+
+        async function handleFiles(files) {
+            hideError();
+            
+            if (files.length > 0) {
+                const file = files[0];
+                
+                if (file.type === 'application/pdf') {
+                    try {
+                        selectedFile = file;
+                        fileName.textContent = file.name;
+                        fileSize.textContent = formatFileSize(file.size);
+                        
+                        const arrayBuffer = await file.arrayBuffer();
+                        const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                        const pageCount = pdfDoc.getPageCount();
+                        
+                        // Clear previous pages
+                        pagesGrid.innerHTML = '';
+                        selectedPages.clear();
+                        
+                        // Create page previews
+                        for (let i = 0; i < pageCount; i++) {
+                            const pageItem = document.createElement('div');
+                            pageItem.className = 'page-item';
+                            pageItem.innerHTML = `
+                                <div class="page-preview">${i + 1}</div>
+                                <div class="page-number">Page ${i + 1}</div>
+                            `;
+                            
+                            pageItem.addEventListener('click', () => {
+                                pageItem.classList.toggle('selected');
+                                if (selectedPages.has(i + 1)) {
+                                    selectedPages.delete(i + 1);
+                                } else {
+                                    selectedPages.add(i + 1);
+                                }
+                                updateSelectedPagesList();
+                            });
+                            
+                            pagesGrid.appendChild(pageItem);
+                        }
+                        
+                        pagesContainer.style.display = 'block';
+                        setTimeout(() => {
+                            pagesContainer.classList.add('visible');
+                        }, 10);
+
+                        // Scroll to the pages container
+                        setTimeout(() => {
+                            pagesContainer.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'start'
+                            });
+                        }, 100);
+                        
+                        updateSelectedPagesList();
+                    } catch (error) {
+                        showError('Error loading PDF. Please try again.');
+                        console.error(error);
+                    }
+                } else {
+                    showError('Please select a PDF file.');
+                }
+            }
+        }
+
+        removeButton.addEventListener('click', async () => {
+            if (!selectedFile || selectedPages.size === 0) return;
+
+            try {
+                const arrayBuffer = await selectedFile.arrayBuffer();
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                const pageCount = pdfDoc.getPageCount();
+                
+                // Create a new PDF with non-selected pages
+                const newPdf = await PDFLib.PDFDocument.create();
+                const pagesToKeep = Array.from({ length: pageCount }, (_, i) => i + 1)
+                    .filter(pageNum => !selectedPages.has(pageNum));
+                
+                for (const pageNum of pagesToKeep) {
+                    const [page] = await newPdf.copyPages(pdfDoc, [pageNum - 1]);
+                    newPdf.addPage(page);
+                }
+                
+                const pdfBytes = await newPdf.save();
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${selectedFile.name.replace('.pdf', '')}_removed.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                showError('Error removing pages. Please try again.');
+                console.error(error);
+            }
+        });
+    </script>
+</body>
+</html>

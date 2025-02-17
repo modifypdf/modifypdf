@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to JPG Converter</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="text.html">
+            <button class="back-button" onclick="window.history.back()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Back
+            </button>
+        </a>
+            <h1>PDF to JPG Converter</h1>
+        </div>
+
+        <div class="upload-container">
+            <div id="dropZone" class="drop-zone">
+                <div class="upload-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                </div>
+                <p class="drop-text">Drag and drop your PDF here</p>
+                <p class="or-text">or</p>
+                <button class="btn" onclick="document.getElementById('fileInput').click()">Choose PDF</button>
+                <input type="file" id="fileInput" hidden accept=".pdf">
+            </div>
+        </div>
+
+        <div id="progressContainer" class="progress-container" style="display: none;">
+            <div class="progress-bar">
+                <div id="progressBar" class="progress"></div>
+            </div>
+            <p id="progressText">Converting page 1...</p>
+        </div>
+
+        <div id="resultContainer" class="result-container" style="display: none;">
+            <h2>Converted Images</h2>
+            <div id="imageGrid" class="image-grid"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+    // Set up PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const progressContainer = document.getElementById('progressContainer');
+const progressBar = document.getElementById('progressBar');
+const progressText = document.getElementById('progressText');
+const resultContainer = document.getElementById('resultContainer');
+const imageGrid = document.getElementById('imageGrid');
+
+// Prevent default drag behaviors
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, preventDefaults, false);
+    document.body.addEventListener(eventName, preventDefaults, false);
+});
+
+// Highlight drop zone when dragging over it
+['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, highlight, false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, unhighlight, false);
+});
+
+// Handle dropped files
+dropZone.addEventListener('drop', handleDrop, false);
+fileInput.addEventListener('change', handleFileSelect, false);
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+function highlight(e) {
+    dropZone.classList.add('dragover');
+}
+
+function unhighlight(e) {
+    dropZone.classList.remove('dragover');
+}
+
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    handleFiles(files);
+}
+
+function handleFileSelect(e) {
+    const files = e.target.files;
+    handleFiles(files);
+}
+
+function scrollToElement(element) {
+    element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+    });
+}
+
+async function handleFiles(files) {
+    if (files.length > 0) {
+        const file = files[0];
+        if (file.type === 'application/pdf') {
+            // Clear previous results
+            imageGrid.innerHTML = '';
+            resultContainer.style.display = 'none';
+            progressContainer.style.display = 'block';
+            
+            // Show progress container with animation
+            setTimeout(() => {
+                progressContainer.classList.add('visible');
+                scrollToElement(progressContainer);
+            }, 10);
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                const numPages = pdf.numPages;
+                
+                for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                    // Update progress
+                    const progress = ((pageNum - 1) / numPages) * 100;
+                    progressBar.style.width = `${progress}%`;
+                    progressText.textContent = `Converting page ${pageNum} of ${numPages}...`;
+                    
+                    // Get the page
+                    const page = await pdf.getPage(pageNum);
+                    const viewport = page.getViewport({ scale: 1.5 });
+                    
+                    // Create canvas
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    
+                    // Render PDF page to canvas
+                    await page.render({
+                        canvasContext: context,
+                        viewport: viewport
+                    }).promise;
+                    
+                    // Convert canvas to JPG
+                    const jpgUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    // Create image card
+                    const imageCard = document.createElement('div');
+                    imageCard.className = 'image-card';
+                    imageCard.innerHTML = `
+                        <img src="${jpgUrl}" alt="Page ${pageNum}">
+                        <div class="image-info">
+                            <h3>Page ${pageNum}</h3>
+                            <button class="download-btn" onclick="downloadImage('${jpgUrl}', 'page-${pageNum}.jpg')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Download JPG
+                            </button>
+                        </div>
+                    `;
+                    imageGrid.appendChild(imageCard);
+                    
+                    // Add animation to the image card
+                    setTimeout(() => {
+                        imageCard.classList.add('visible');
+                    }, pageNum * 100);
+                }
+                
+                // Show results with animation
+                progressContainer.classList.remove('visible');
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    resultContainer.style.display = 'block';
+                    setTimeout(() => {
+                        resultContainer.classList.add('visible');
+                        scrollToElement(resultContainer);
+                    }, 10);
+                }, 500);
+                
+            } catch (error) {
+                alert('Error converting PDF: ' + error.message);
+                progressContainer.classList.remove('visible');
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                }, 500);
+            }
+        } else {
+            alert('Please select a PDF file.');
+        }
+    }
+}
+
+function downloadImage(dataUrl, filename) {
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+</script>
+<style>
+    * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    scroll-behavior: smooth;
+}
+
+body {
+    background-color: #f5f5f5;
+    min-height: 100vh;
+    padding: 2rem;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.back-button {
+    background: none;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #4f46e5;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.back-button:hover {
+    background-color: #f5f3ff;
+}
+
+.header h1 {
+    color: #1a1a1a;
+    margin-bottom: 0;
+    font-size: 1.5rem;
+}
+
+.header p {
+    color: #666;
+}
+
+.upload-container {
+    background-color: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.drop-zone {
+    border: 2px dashed #ccc;
+    border-radius: 0.5rem;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+    border-color: #4f46e5;
+    background-color: #f5f3ff;
+}
+
+.upload-icon {
+    color: #4f46e5;
+    margin-bottom: 1rem;
+}
+
+.drop-text {
+    color: #1a1a1a;
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.or-text {
+    color: #666;
+    margin: 0.5rem 0;
+}
+
+.btn {
+    background-color: #4f46e5;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    background-color: #4338ca;
+}
+
+.progress-container {
+    background-color: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-bottom: 2rem;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.progress-container.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.progress-bar {
+    background-color: #e5e7eb;
+    border-radius: 0.5rem;
+    height: 0.5rem;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.progress {
+    background-color: #4f46e5;
+    height: 100%;
+    width: 0;
+    transition: width 0.3s ease;
+}
+
+#progressText {
+    text-align: center;
+    color: #666;
+}
+
+.result-container {
+    background-color: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.result-container.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.result-container h2 {
+    color: #1a1a1a;
+    margin-bottom: 1.5rem;
+}
+
+.image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.image-card {
+    background-color: #f9fafb;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.image-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.image-card img {
+    width: 100%;
+    height: 300px;
+    object-fit: contain;
+    background-color: white;
+}
+
+.image-info {
+    padding: 1rem;
+}
+
+.image-info h3 {
+    color: #1a1a1a;
+    margin-bottom: 0.5rem;
+}
+
+.download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #4f46e5;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    border: none;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.3s ease;
+}
+
+.download-btn:hover {
+    background-color: #4338ca;
+}
+</style>
+</body>
+</html>

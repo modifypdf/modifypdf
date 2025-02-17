@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to DOCX Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .converter-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            color: #2d3748;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            font-size: 1.8rem;
+        }
+
+        .upload-area {
+            border: 2px dashed #cbd5e0;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .upload-area:hover {
+            border-color: #4299e1;
+            background: #ebf8ff;
+        }
+
+        .upload-area.dragging {
+            border-color: #4299e1;
+            background: #ebf8ff;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #4299e1;
+            margin-bottom: 1rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .convert-btn {
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 6px;
+            width: 100%;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .convert-btn:hover {
+            background: #3182ce;
+        }
+
+        .convert-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            color: #e53e3e;
+            margin-top: 1rem;
+            text-align: center;
+            display: none;
+        }
+
+        .success-message {
+            color: #38a169;
+            margin-top: 1rem;
+            text-align: center;
+            display: none;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #4299e1;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 2px;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: #4299e1;
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .preview-container {
+            display: none;
+            margin-top: 1rem;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1rem;
+        }
+
+        .preview-page {
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .preview-page:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            height: auto;
+            margin: 10px 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="converter-container">
+        <h1>PDF to DOCX Converter</h1>
+        <div class="upload-area" id="dropZone">
+            <div class="upload-icon">📄</div>
+            <p>Drag & Drop your PDF file here</p>
+            <p>or</p>
+            <input type="file" id="fileInput" class="file-input" accept=".pdf">
+            <button onclick="document.getElementById('fileInput').click()" class="convert-btn" style="margin-top: 1rem;">
+                Choose File
+            </button>
+        </div>
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-bar-fill" id="progressBarFill"></div>
+        </div>
+        <div class="preview-container" id="previewContainer"></div>
+        <button id="convertBtn" class="convert-btn" disabled>Convert to DOCX</button>
+        <div id="loading" class="loading"></div>
+        <div id="errorMessage" class="error-message"></div>
+        <div id="successMessage" class="success-message"></div>
+    </div>
+
+    <script>
+        // Initialize PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // DOM Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const convertBtn = document.getElementById('convertBtn');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+        const progressBar = document.getElementById('progressBar');
+        const progressBarFill = document.getElementById('progressBarFill');
+        const previewContainer = document.getElementById('previewContainer');
+
+        let selectedFile = null;
+
+        // Drag and drop handlers
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragging');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragging');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragging');
+            
+            const files = e.dataTransfer.files;
+            handleFile(files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFile(e.target.files[0]);
+        });
+
+        async function handleFile(file) {
+            if (!file) return;
+
+            if (file.type !== 'application/pdf') {
+                showError('Please select a PDF file.');
+                return;
+            }
+
+            selectedFile = file;
+            convertBtn.disabled = false;
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+            dropZone.querySelector('p').textContent = `Selected: ${file.name}`;
+            
+            try {
+                await showPDFPreview(file);
+            } catch (error) {
+                console.error('Preview error:', error);
+                showError('Error generating preview. The file might still be convertible.');
+            }
+        }
+
+        async function showPDFPreview(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+            
+            previewContainer.innerHTML = '';
+            previewContainer.style.display = 'block';
+
+            for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 3); pageNum++) {
+                const page = await pdf.getPage(pageNum);
+                const scale = 1.5;
+                const viewport = page.getViewport({ scale });
+                
+                // Create canvas for page preview
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                // Render page to canvas
+                await page.render({
+                    canvasContext: context,
+                    viewport: viewport
+                }).promise;
+                
+                const pageDiv = document.createElement('div');
+                pageDiv.className = 'preview-page';
+                pageDiv.innerHTML = `<strong>Page ${pageNum}:</strong><br>`;
+                
+                // Convert canvas to image
+                const img = document.createElement('img');
+                img.src = canvas.toDataURL();
+                img.className = 'preview-image';
+                pageDiv.appendChild(img);
+                
+                previewContainer.appendChild(pageDiv);
+            }
+        }
+
+        async function extractPageImage(page, scale = 2) {
+            const viewport = page.getViewport({ scale });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            await page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise;
+
+            return canvas.toDataURL('image/jpeg', 0.75);
+        }
+
+        convertBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            try {
+                loading.style.display = 'block';
+                progressBar.style.display = 'block';
+                errorMessage.style.display = 'none';
+                successMessage.style.display = 'none';
+                convertBtn.disabled = true;
+
+                const arrayBuffer = await selectedFile.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                
+                // Create a new Document
+                const doc = new docx.Document({
+                    sections: []
+                });
+
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    updateProgress((pageNum - 1) / pdf.numPages * 100);
+                    
+                    const page = await pdf.getPage(pageNum);
+                    const textContent = await page.getTextContent();
+                    const imageDataUrl = await extractPageImage(page);
+                    
+                    // Convert data URL to base64
+                    const base64Image = imageDataUrl.split(',')[1];
+                    
+                    // Add page content as section
+                    doc.addSection({
+                        properties: {
+                            page: {
+                                size: {
+                                    width: docx.convertMillimetersToTwip(210),
+                                    height: docx.convertMillimetersToTwip(297),
+                                },
+                                margin: {
+                                    top: docx.convertMillimetersToTwip(25),
+                                    right: docx.convertMillimetersToTwip(25),
+                                    bottom: docx.convertMillimetersToTwip(25),
+                                    left: docx.convertMillimetersToTwip(25),
+                                },
+                            },
+                        },
+                        children: [
+                            new docx.Paragraph({
+                                children: [
+                                    new docx.ImageRun({
+                                        data: base64Image,
+                                        transformation: {
+                                            width: 600,
+                                            height: 800
+                                        }
+                                    })
+                                ]
+                            }),
+                            new docx.Paragraph({
+                                children: [
+                                    new docx.TextRun({
+                                        text: textContent.items.map(item => item.str).join(' '),
+                                        size: 24
+                                    })
+                                ]
+                            })
+                        ]
+                    });
+                }
+
+                updateProgress(100);
+
+                // Generate and download the DOCX file
+                const blob = await docx.Packer.toBlob(doc);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = selectedFile.name.replace('.pdf', '.docx');
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showSuccess('Conversion completed successfully!');
+            } catch (error) {
+                console.error('Conversion error:', error);
+                showError('Error converting PDF. Please try again.');
+            } finally {
+                loading.style.display = 'none';
+                progressBar.style.display = 'none';
+                convertBtn.disabled = false;
+            }
+        });
+
+        function updateProgress(percent) {
+            progressBarFill.style.width = `${percent}%`;
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
